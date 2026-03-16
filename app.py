@@ -4,13 +4,19 @@ import random
 from datetime import datetime, timezone
 from pathlib import Path
 
+import pandas as pd
 import streamlit as st
 
 
 # =========================
 # CONFIG
 # =========================
-st.set_page_config(page_title="Jogo: Estruturas Condicionais (Java)", page_icon="🧠", layout="centered")
+st.set_page_config(
+    page_title="Jogo: Estruturas Condicionais (Java)",
+    page_icon="🧠",
+    layout="centered"
+)
+
 st.title("🧠 Jogo: Estruturas Condicionais em Java")
 st.caption("Pratique if, if/else, else if e switch")
 
@@ -38,19 +44,23 @@ DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 SCORES_FILE = DATA_DIR / "condicionais_scores.csv"
 ANSWERS_FILE = DATA_DIR / "condicionais_answers.csv"
-PROGRESS_FILE = DATA_DIR / "condicionais_progress.csv"
 
 SCORES_HEADERS = [
-    "timestamp_utc", "student_name",
-    "base_correct", "final_points",
-    "total", "percent_official", "max_streak"
+    "timestamp_utc",
+    "student_name",
+    "base_correct",
+    "final_points",
+    "total",
+    "percent_official",
+    "max_streak"
 ]
-ANS_HEADERS = ["timestamp_utc", "student_name", "question_id", "level", "is_correct"]
-PROGRESS_HEADERS = [
-    "timestamp_utc", "student_name",
-    "q_index", "total",
-    "base_correct", "final_points", "percent_official_live",
-    "streak", "max_streak", "status"
+
+ANS_HEADERS = [
+    "timestamp_utc",
+    "student_name",
+    "question_id",
+    "level",
+    "is_correct"
 ]
 
 
@@ -68,10 +78,12 @@ def ensure_answers_file():
     ensure_file(ANSWERS_FILE, ANS_HEADERS)
 
 
-def ensure_progress_file():
-    ensure_file(PROGRESS_FILE, PROGRESS_HEADERS)
+def clear_data_caches():
+    load_scores.clear()
+    load_answers.clear()
 
 
+@st.cache_data(ttl=2)
 def load_scores():
     ensure_scores_file()
     rows = []
@@ -89,6 +101,7 @@ def load_scores():
     return rows
 
 
+@st.cache_data(ttl=2)
 def load_answers():
     ensure_answers_file()
     rows = []
@@ -102,101 +115,71 @@ def load_answers():
     return rows
 
 
-def load_progress():
-    ensure_progress_file()
-    rows = []
-    with open(PROGRESS_FILE, "r", newline="", encoding="utf-8") as f:
-        for row in csv.DictReader(f):
-            try:
-                row["q_index"] = int(row.get("q_index", 0))
-                row["total"] = int(row.get("total", 0))
-                row["base_correct"] = int(row.get("base_correct", 0))
-                row["final_points"] = int(row.get("final_points", 0))
-                row["percent_official_live"] = float(row.get("percent_official_live", 0.0))
-                row["streak"] = int(row.get("streak", 0))
-                row["max_streak"] = int(row.get("max_streak", 0))
-                rows.append(row)
-            except Exception:
-                pass
-    return rows
-
-
 def append_score(student_name: str, base_correct: int, final_points: int, total: int, max_streak: int):
     ensure_scores_file()
     percent_official = (base_correct / total) * 100 if total else 0.0
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+
     with open(SCORES_FILE, "a", newline="", encoding="utf-8") as f:
-        csv.writer(f).writerow([ts, student_name, base_correct, final_points, total, f"{percent_official:.2f}", max_streak])
+        csv.writer(f).writerow([
+            ts,
+            student_name,
+            base_correct,
+            final_points,
+            total,
+            f"{percent_official:.2f}",
+            max_streak
+        ])
+
+    clear_data_caches()
 
 
 def append_answer(student_name: str, question_id: str, level: str, is_correct: bool):
     ensure_answers_file()
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+
     with open(ANSWERS_FILE, "a", newline="", encoding="utf-8") as f:
-        csv.writer(f).writerow([ts, student_name, question_id, level, int(is_correct)])
+        csv.writer(f).writerow([
+            ts,
+            student_name,
+            question_id,
+            level,
+            int(is_correct)
+        ])
 
-
-def upsert_progress(student_name: str, q_index: int, total: int, base_correct: int, final_points: int,
-                    percent_official_live: float, streak: int, max_streak: int, status: str):
-    ensure_progress_file()
-    ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
-
-    rows = []
-    found = False
-    with open(PROGRESS_FILE, "r", newline="", encoding="utf-8") as f:
-        reader = csv.DictReader(f)
-        for r in reader:
-            if (r.get("student_name") or "").strip().lower() == student_name.strip().lower():
-                r = {
-                    "timestamp_utc": ts,
-                    "student_name": student_name,
-                    "q_index": str(q_index),
-                    "total": str(total),
-                    "base_correct": str(base_correct),
-                    "final_points": str(final_points),
-                    "percent_official_live": f"{percent_official_live:.2f}",
-                    "streak": str(streak),
-                    "max_streak": str(max_streak),
-                    "status": status
-                }
-                found = True
-            rows.append(r)
-
-    if not found:
-        rows.append({
-            "timestamp_utc": ts,
-            "student_name": student_name,
-            "q_index": str(q_index),
-            "total": str(total),
-            "base_correct": str(base_correct),
-            "final_points": str(final_points),
-            "percent_official_live": f"{percent_official_live:.2f}",
-            "streak": str(streak),
-            "max_streak": str(max_streak),
-            "status": status
-        })
-
-    with open(PROGRESS_FILE, "w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=PROGRESS_HEADERS)
-        writer.writeheader()
-        writer.writerows(rows)
+    clear_data_caches()
 
 
 def clear_all_data():
-    for p, h in [(SCORES_FILE, SCORES_HEADERS), (ANSWERS_FILE, ANS_HEADERS), (PROGRESS_FILE, PROGRESS_HEADERS)]:
+    for p, h in [
+        (SCORES_FILE, SCORES_HEADERS),
+        (ANSWERS_FILE, ANS_HEADERS),
+    ]:
         if p.exists():
             p.unlink()
         ensure_file(p, h)
+
+    clear_data_caches()
 
 
 # =========================
 # UI HELPERS
 # =========================
 def difficulty_bar(level: str):
-    mapping = {"Fácil": 30, "Médio": 60, "Difícil": 90}
-    colors = {"Fácil": "🟩", "Médio": "🟨", "Difícil": "🟥"}
+    mapping = {
+        "Fácil": 25,
+        "Médio": 55,
+        "Difícil": 80,
+        "Ultra Difícil": 100
+    }
+    colors = {
+        "Fácil": "🟩",
+        "Médio": "🟨",
+        "Difícil": "🟥",
+        "Ultra Difícil": "🟪"
+    }
     value = mapping.get(level, 50)
-    st.markdown(f"**Dificuldade:** {colors.get(level,'🟨')} {level}")
+    st.markdown(f"**Dificuldade:** {colors.get(level, '🟨')} {level}")
     st.progress(value / 100)
 
 
@@ -204,19 +187,19 @@ def streak_bonus_points(streak: int) -> int:
     return max(0, streak - 1)
 
 
-def shuffle_options_keep_answer(options: list[str], answer: str) -> list[str]:
-    opts = options[:]
-    random.shuffle(opts)
-    if answer not in opts:
-        opts[-1] = answer
-        random.shuffle(opts)
-    return opts
-
-
 def get_fixed_options_for_question(qid: str, options: list[str], answer: str) -> list[str]:
+    """
+    Ordem determinística por questão:
+    todos os alunos recebem a mesma ordem para a mesma questão.
+    """
     key = f"opts_{qid}"
     if key not in st.session_state:
-        st.session_state[key] = shuffle_options_keep_answer(options, answer)
+        rng = random.Random(qid)
+        opts = options[:]
+        rng.shuffle(opts)
+        if answer not in opts:
+            opts[-1] = answer
+        st.session_state[key] = opts
     return st.session_state[key]
 
 
@@ -550,6 +533,154 @@ QUESTIONS = [
         },
         "tip": "Quando há três caminhos possíveis, else if costuma ser uma boa solução."
     },
+
+    # +6 DIFÍCEIS
+    {
+        "id": "Q21", "level": "Difícil",
+        "prompt": "O que este código imprime?",
+        "code": 'int n = 12;\nif (n % 2 == 0) {\n    if (n > 10) {\n        System.out.println("A");\n    } else {\n        System.out.println("B");\n    }\n} else {\n    System.out.println("C");\n}',
+        "options": ["A", "B", "C", "Nada"],
+        "answer": "A",
+        "rationale": {
+            "A": "✅ 12 é par e maior que 10.",
+            "B": "❌ A segunda condição é verdadeira.",
+            "C": "❌ O número é par.",
+            "Nada": "❌ O código imprime algo."
+        },
+        "tip": "Avalie as condições de fora para dentro."
+    },
+    {
+        "id": "Q22", "level": "Difícil",
+        "prompt": "Qual saída o código produz?",
+        "code": 'int x = 7;\nif (x > 10)\n    System.out.println("A");\nelse if (x > 5)\n    System.out.println("B");\nelse\n    System.out.println("C");',
+        "options": ["A", "B", "C", "Nada"],
+        "answer": "B",
+        "rationale": {
+            "A": "❌ 7 não é maior que 10.",
+            "B": "✅ 7 é maior que 5.",
+            "C": "❌ O segundo if já foi verdadeiro.",
+            "Nada": "❌ Uma condição será executada."
+        },
+        "tip": "No encadeamento else if, apenas o primeiro verdadeiro executa."
+    },
+    {
+        "id": "Q23", "level": "Difícil",
+        "prompt": "O que acontece neste código?",
+        "code": 'int dia = 3;\nswitch(dia) {\ncase 1:\ncase 2:\n    System.out.println("Início da semana");\n    break;\ncase 3:\ncase 4:\n    System.out.println("Meio da semana");\n    break;\ndefault:\n    System.out.println("Outro");\n}',
+        "options": ["Início da semana", "Meio da semana", "Outro", "Nada"],
+        "answer": "Meio da semana",
+        "rationale": {
+            "Início da semana": "❌ Esse caso vale apenas para 1 ou 2.",
+            "Meio da semana": "✅ O valor 3 entra nesse grupo.",
+            "Outro": "❌ Default não é usado.",
+            "Nada": "❌ Sempre haverá saída."
+        },
+        "tip": "switch pode agrupar vários cases."
+    },
+    {
+        "id": "Q24", "level": "Difícil",
+        "prompt": "Qual código representa corretamente: 'Se o número for múltiplo de 3, escreva M3'?",
+        "options": [
+            'if (n % 3 == 0) { System.out.println("M3"); }',
+            'if (n / 3 == 0) { System.out.println("M3"); }',
+            'if (n % 3 == 1) { System.out.println("M3"); }',
+            'if (n * 3 == 0) { System.out.println("M3"); }'
+        ],
+        "answer": 'if (n % 3 == 0) { System.out.println("M3"); }',
+        "rationale": {
+            'if (n % 3 == 0) { System.out.println("M3"); }': "✅ Essa é a regra correta.",
+            'if (n / 3 == 0) { System.out.println("M3"); }': "❌ Divisão não testa múltiplo.",
+            'if (n % 3 == 1) { System.out.println("M3"); }': "❌ Isso indicaria resto 1.",
+            'if (n * 3 == 0) { System.out.println("M3"); }': "❌ Não verifica múltiplos."
+        },
+        "tip": "Múltiplos usam operador módulo %."
+    },
+    {
+        "id": "Q25", "level": "Difícil",
+        "prompt": "O que imprime?",
+        "code": 'int a = 3;\nint b = 4;\nif (a > 2 && b > 5) {\n    System.out.println("A");\n} else {\n    System.out.println("B");\n}',
+        "options": ["A", "B", "Nada", "Erro"],
+        "answer": "B",
+        "rationale": {
+            "A": "❌ b > 5 é falso.",
+            "B": "✅ No operador && ambas precisam ser verdadeiras.",
+            "Nada": "❌ O else será executado.",
+            "Erro": "❌ Código válido."
+        },
+        "tip": "&& exige duas condições verdadeiras."
+    },
+    {
+        "id": "Q26", "level": "Difícil",
+        "prompt": "O que imprime?",
+        "code": 'int x = 5;\nif (x > 10) {\n    System.out.println("A");\n} else if (x > 3) {\n    if (x < 7) {\n        System.out.println("B");\n    }\n}',
+        "options": ["A", "B", "Nada", "Erro"],
+        "answer": "B",
+        "rationale": {
+            "A": "❌ x não é maior que 10.",
+            "B": "✅ x > 3 e x < 7.",
+            "Nada": "❌ A condição interna imprime algo.",
+            "Erro": "❌ Código válido."
+        },
+        "tip": "Avalie todas as condições."
+    },
+
+    # ⚫ ULTRA DIFÍCIL
+    {
+        "id": "Q27", "level": "Ultra Difícil",
+        "prompt": "O que este código imprime?",
+        "code": 'int x = 4;\nif (x > 5)\n    if (x > 10)\n        System.out.println("A");\n    else\n        System.out.println("B");',
+        "options": ["A", "B", "Nada", "Erro"],
+        "answer": "Nada",
+        "rationale": {
+            "A": "❌ O primeiro if é falso.",
+            "B": "❌ O else pertence ao if mais próximo, mas o primeiro if não executa.",
+            "Nada": "✅ O primeiro if falha.",
+            "Erro": "❌ Código válido."
+        },
+        "tip": "Cuidado com if sem chaves."
+    },
+    {
+        "id": "Q28", "level": "Ultra Difícil",
+        "prompt": "Qual saída ocorre?",
+        "code": 'int x = 2;\nswitch(x) {\ncase 1:\ncase 2:\ncase 3:\n    System.out.println("Grupo 1");\n    break;\ncase 4:\n    System.out.println("Grupo 2");\n}',
+        "options": ["Grupo 1", "Grupo 2", "Nada", "Erro"],
+        "answer": "Grupo 1",
+        "rationale": {
+            "Grupo 1": "✅ O valor 2 pertence ao grupo.",
+            "Grupo 2": "❌ O case 4 não é executado.",
+            "Nada": "❌ Um case será executado.",
+            "Erro": "❌ Código válido."
+        },
+        "tip": "Cases podem compartilhar bloco."
+    },
+    {
+        "id": "Q29", "level": "Ultra Difícil",
+        "prompt": "O que imprime?",
+        "code": 'int x = 5;\nint y = 10;\nif (x > 3 && y < 20)\n    if (y > 15)\n        System.out.println("A");\n    else\n        System.out.println("B");',
+        "options": ["A", "B", "Nada", "Erro"],
+        "answer": "B",
+        "rationale": {
+            "A": "❌ y não é maior que 15.",
+            "B": "✅ Primeira condição verdadeira, segunda falsa.",
+            "Nada": "❌ Algo será impresso.",
+            "Erro": "❌ Código válido."
+        },
+        "tip": "Analise && antes de entrar no segundo if."
+    },
+    {
+        "id": "Q30", "level": "Ultra Difícil",
+        "prompt": "O que imprime?",
+        "code": 'int n = 0;\nif (n == 0)\n    System.out.println("Zero");\nelse if (n > 0)\n    System.out.println("Positivo");\nelse\n    System.out.println("Negativo");',
+        "options": ["Zero", "Positivo", "Negativo", "Nada"],
+        "answer": "Zero",
+        "rationale": {
+            "Zero": "✅ n é igual a 0.",
+            "Positivo": "❌ n não é maior que 0.",
+            "Negativo": "❌ n não é menor que 0.",
+            "Nada": "❌ Uma condição será executada."
+        },
+        "tip": "Avalie na ordem if → else if → else."
+    }
 ]
 
 
@@ -563,9 +694,10 @@ def clear_fixed_option_states():
 
 
 def reset_quiz_order():
-    order = list(range(len(QUESTIONS)))
-    random.shuffle(order)
-    st.session_state.q_order = order
+    """
+    Ordem fixa, sem aleatoriedade entre questões.
+    """
+    st.session_state.q_order = list(range(len(QUESTIONS)))
 
 
 def reset_quiz_progress():
@@ -619,10 +751,8 @@ if view == "👤 Aluno":
             else:
                 st.session_state.student_name = nome_limpo
                 reset_all()
-                total = len(QUESTIONS)
-                upsert_progress(nome_limpo, 0, total, 0, 0, 0.0, 0, 0, "IN_PROGRESS")
                 st.rerun()
-        st.info("A atividade mistura questões fáceis, médias e difíceis para consolidar a aula.")
+        st.info("A atividade segue uma ordem fixa: fácil → médio → difícil → ultra difícil.")
     else:
         total = len(QUESTIONS)
         percent_official_live = (st.session_state.base_correct / total) * 100 if total else 0.0
@@ -633,18 +763,6 @@ if view == "👤 Aluno":
         c2.metric("📈 % oficial", f"{percent_official_live:.1f}%")
         c3.metric("🏁 Pontuação final", st.session_state.final_points)
         c4.metric("🔥 Streak", st.session_state.streak)
-
-        upsert_progress(
-            st.session_state.student_name,
-            st.session_state.q_index,
-            total,
-            st.session_state.base_correct,
-            st.session_state.final_points,
-            percent_official_live,
-            st.session_state.streak,
-            st.session_state.max_streak,
-            "FINISHED" if st.session_state.q_index >= total else "IN_PROGRESS"
-        )
 
         if st.session_state.q_index >= total:
             st.success("🎉 Atividade finalizada!")
@@ -663,17 +781,6 @@ if view == "👤 Aluno":
                     st.session_state.max_streak
                 )
                 st.session_state.saved_score = True
-
-                upsert_progress(
-                    st.session_state.student_name,
-                    total, total,
-                    st.session_state.base_correct,
-                    st.session_state.final_points,
-                    percent_official,
-                    st.session_state.streak,
-                    st.session_state.max_streak,
-                    "FINISHED"
-                )
 
             col1, col2 = st.columns(2)
             if col1.button("🔁 Refazer"):
@@ -715,12 +822,20 @@ if view == "👤 Aluno":
                 if st.button("✅ Confirmar"):
                     correct = (choice == q["answer"])
 
-                    append_answer(st.session_state.student_name, q["id"], q["level"], correct)
+                    append_answer(
+                        st.session_state.student_name,
+                        q["id"],
+                        q["level"],
+                        correct
+                    )
 
                     if correct:
                         st.session_state.base_correct += 1
                         st.session_state.streak += 1
-                        st.session_state.max_streak = max(st.session_state.max_streak, st.session_state.streak)
+                        st.session_state.max_streak = max(
+                            st.session_state.max_streak,
+                            st.session_state.streak
+                        )
                         bonus = streak_bonus_points(st.session_state.streak)
                         st.session_state.final_points += 1 + bonus
                         st.session_state.last_bonus = bonus
@@ -743,6 +858,7 @@ if view == "👤 Aluno":
                     rk = f"radio_{q['id']}"
                     if rk in st.session_state:
                         del st.session_state[rk]
+
                     st.session_state.q_index += 1
                     st.session_state.show_feedback = False
                     st.session_state.last_choice = None
@@ -778,7 +894,7 @@ else:
             st.session_state.confirm_clear = True
 
         if st.session_state.confirm_clear:
-            st.warning("⚠️ Apagar tudo (pontuações, progresso e respostas)?")
+            st.warning("⚠️ Apagar tudo (pontuações e respostas)?")
             c1, c2 = st.columns(2)
             if c1.button("✅ Confirmar exclusão"):
                 clear_all_data()
@@ -791,32 +907,18 @@ else:
 
         rows = load_scores()
         answers = load_answers()
-        progress = load_progress()
-
-        st.markdown("## ⏳ Alunos em andamento")
-        in_prog = [p for p in progress if p.get("status") == "IN_PROGRESS"]
-        if not in_prog:
-            st.info("Ninguém em andamento no momento.")
-        else:
-            in_prog_sorted = sorted(in_prog, key=lambda x: (x["q_index"], x["percent_official_live"]), reverse=True)
-            view_rows = []
-            for p in in_prog_sorted:
-                view_rows.append({
-                    "Aluno": p["student_name"],
-                    "Progresso": f"{p['q_index']}/{p['total']}",
-                    "% oficial (parcial)": f"{p['percent_official_live']:.1f}%",
-                    "Pontos": p["final_points"],
-                    "Streak": p["streak"],
-                    "Max streak": p["max_streak"],
-                    "Atualizado (UTC)": p["timestamp_utc"]
-                })
-            st.dataframe(view_rows, use_container_width=True, hide_index=True)
 
         st.markdown("## 📊 Taxa de acerto por dificuldade")
         if not answers:
             st.info("Ainda não há respostas registradas por questão.")
         else:
-            stats = {"Fácil": {"correct": 0, "total": 0}, "Médio": {"correct": 0, "total": 0}, "Difícil": {"correct": 0, "total": 0}}
+            stats = {
+                "Fácil": {"correct": 0, "total": 0},
+                "Médio": {"correct": 0, "total": 0},
+                "Difícil": {"correct": 0, "total": 0},
+                "Ultra Difícil": {"correct": 0, "total": 0},
+            }
+
             for a in answers:
                 level = a.get("level", "Médio")
                 if level not in stats:
@@ -825,13 +927,18 @@ else:
                 stats[level]["correct"] += 1 if a["is_correct"] == 1 else 0
 
             chart_data = []
-            for level in ["Fácil", "Médio", "Difícil"]:
+            for level in ["Fácil", "Médio", "Difícil", "Ultra Difícil"]:
                 total_r = stats[level]["total"]
                 correct_r = stats[level]["correct"]
                 rate = (correct_r / total_r) * 100 if total_r else 0.0
-                chart_data.append({"Dificuldade": level, "Taxa (%)": round(rate, 1), "Total respostas": total_r})
+                chart_data.append({
+                    "Dificuldade": level,
+                    "Taxa (%)": round(rate, 1),
+                    "Total respostas": total_r
+                })
 
-            st.bar_chart({row["Dificuldade"]: row["Taxa (%)"] for row in chart_data})
+            chart_df = pd.DataFrame(chart_data).set_index("Dificuldade")
+            st.bar_chart(chart_df["Taxa (%)"])
             st.dataframe(chart_data, use_container_width=True, hide_index=True)
 
         st.markdown("## 🏆 Ranking (finalizados)")
@@ -843,20 +950,42 @@ else:
                 name = (r.get("student_name") or "").strip()
                 if not name:
                     continue
-                key = (r["percent_official"], r["final_points"], r.get("max_streak", 0), r["timestamp_utc"])
+
+                key = (
+                    r["percent_official"],
+                    r["final_points"],
+                    r.get("max_streak", 0),
+                    r["timestamp_utc"]
+                )
+
                 if name not in best_by_student:
                     best_by_student[name] = r
                 else:
                     cur = best_by_student[name]
-                    cur_key = (cur["percent_official"], cur["final_points"], cur.get("max_streak", 0), cur["timestamp_utc"])
+                    cur_key = (
+                        cur["percent_official"],
+                        cur["final_points"],
+                        cur.get("max_streak", 0),
+                        cur["timestamp_utc"]
+                    )
                     if key > cur_key:
                         best_by_student[name] = r
 
             best_list = list(best_by_student.values())
-            best_sorted = sorted(best_list, key=lambda x: (x["percent_official"], x["final_points"], x.get("max_streak", 0), x["timestamp_utc"]), reverse=True)
+            best_sorted = sorted(
+                best_list,
+                key=lambda x: (
+                    x["percent_official"],
+                    x["final_points"],
+                    x.get("max_streak", 0),
+                    x["timestamp_utc"]
+                ),
+                reverse=True
+            )
 
             medals = {1: "🥇", 2: "🥈", 3: "🥉"}
             ranking_table = []
+
             for i, r in enumerate(best_sorted[:10], start=1):
                 ranking_table.append({
                     "Posição": f"{medals.get(i, '🏅')} {i}",
@@ -867,18 +996,29 @@ else:
                     "🔥 Max streak": r.get("max_streak", 0),
                     "Última (UTC)": r["timestamp_utc"],
                 })
+
             st.dataframe(ranking_table, use_container_width=True, hide_index=True)
 
         st.markdown("## 📥 Exportar dados")
         ensure_scores_file()
-        ensure_progress_file()
         ensure_answers_file()
 
         with open(SCORES_FILE, "rb") as f:
-            st.download_button("📥 Baixar CSV de Pontuações (finalizados)", f, file_name="condicionais_scores.csv", mime="text/csv")
-        with open(PROGRESS_FILE, "rb") as f:
-            st.download_button("📥 Baixar CSV de Progresso (andamento)", f, file_name="condicionais_progress.csv", mime="text/csv")
-        with open(ANSWERS_FILE, "rb") as f:
-            st.download_button("📥 Baixar CSV de Respostas por Questão", f, file_name="condicionais_answers.csv", mime="text/csv")
+            st.download_button(
+                "📥 Baixar CSV de Pontuações (finalizados)",
+                f,
+                file_name="condicionais_scores.csv",
+                mime="text/csv"
+            )
 
-        st.caption(f"Arquivos: `{SCORES_FILE.as_posix()}`, `{PROGRESS_FILE.as_posix()}`, `{ANSWERS_FILE.as_posix()}`")
+        with open(ANSWERS_FILE, "rb") as f:
+            st.download_button(
+                "📥 Baixar CSV de Respostas por Questão",
+                f,
+                file_name="condicionais_answers.csv",
+                mime="text/csv"
+            )
+
+        st.caption(
+            f"Arquivos: `{SCORES_FILE.as_posix()}`, `{ANSWERS_FILE.as_posix()}`"
+        )
