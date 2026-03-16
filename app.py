@@ -283,8 +283,8 @@ QUESTIONS = [
     {
         "id": "Q03", "level": "Fácil",
         "prompt": "Qual operador representa 'maior ou igual a' em Java?",
-        "options": [">=", "=>", "==", "<="],
-        "answer": ">=",
+        "options": ["> = ", "= >", "= =", "< ="],
+        "answer": "> =",
         "rationale": {
             ">=": "✅ Esse é o operador correto.",
             "=>": "❌ Essa ordem não existe em Java.",
