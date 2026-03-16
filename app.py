@@ -269,10 +269,10 @@ QUESTIONS = [
         "options": ["> = ", "= >", "= =", "< ="],
         "answer": "> =",
         "rationale": {
-            ">=": "✅ Esse é o operador correto.",
-            "=>": "❌ Essa ordem não existe em Java.",
-            "==": "❌ == compara igualdade.",
-            "<=": "❌ <= significa menor ou igual."
+            "> =": "✅ Esse é o operador correto.",
+            "= >": "❌ Essa ordem não existe em Java.",
+            "= =": "❌ == compara igualdade.",
+            "< =": "❌ <= significa menor ou igual."
         },
         "tip": "Maior ou igual começa com >."
     },
